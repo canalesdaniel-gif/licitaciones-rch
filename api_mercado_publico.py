@@ -20,7 +20,7 @@ from typing import Any
 
 import requests
 
-BASE_URL = "http://api.mercadopublico.cl/servicios/v1/Publico"
+BASE_URL = "https://api.mercadopublico.cl/servicios/v1/Publico"
 TIMEOUT_SEGUNDOS = 30
 
 
