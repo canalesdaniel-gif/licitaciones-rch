@@ -42,73 +42,174 @@ st.set_page_config(
 
 # Paleta RCH
 CARMESI = "#A6212B"
+CARMESI_OSCURO = "#8A1C24"
 NEGRO_PATRIMONIAL = "#1A1A1A"
 ESTUCO = "#EDEAE5"
+ESTUCO_CLARO = "#F5F3EF"
 PIZARRA = "#3D3D3D"
 CONCRETO = "#7A7A7A"
 VERDE_RECUPERACION = "#2E7D5B"
 AMBAR_CAUTELA = "#D89A1F"
+LIENZO = "#FAF9F7"
+BORDE = "#E3DFD8"
 
 
 CSS = f"""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;900&family=Source+Sans+3:wght@400;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Source+Sans+3:wght@400;500;600;700&display=swap');
+
+    :root {{
+        --carmesi: {CARMESI};
+        --carmesi-oscuro: {CARMESI_OSCURO};
+        --borde: {BORDE};
+        --sombra-sm: 0 1px 2px rgba(26,26,26,0.04), 0 1px 3px rgba(26,26,26,0.06);
+        --sombra-md: 0 2px 4px rgba(26,26,26,0.05), 0 4px 12px rgba(26,26,26,0.08);
+        --sombra-lg: 0 6px 16px rgba(26,26,26,0.10), 0 2px 6px rgba(26,26,26,0.06);
+    }}
 
     html, body, [class*="css"]  {{
         font-family: 'Source Sans 3', sans-serif;
         color: {NEGRO_PATRIMONIAL};
     }}
 
+    /* Lienzo general con un tinte cálido para que las tarjetas blancas resalten */
+    .stApp {{
+        background-color: {LIENZO};
+    }}
+
     h1, h2, h3, h4 {{
         font-family: 'Montserrat', sans-serif !important;
         color: {NEGRO_PATRIMONIAL};
         font-weight: 700 !important;
+        letter-spacing: -0.01em;
     }}
 
     h1 {{
-        border-bottom: 2px solid {CARMESI};
-        padding-bottom: 0.5rem;
+        position: relative;
+        padding-bottom: 0.6rem;
         margin-bottom: 1.5rem;
+        font-weight: 800 !important;
     }}
 
+    h1::after {{
+        content: "";
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        width: 64px;
+        height: 3px;
+        background: linear-gradient(90deg, {CARMESI}, {AMBAR_CAUTELA});
+        border-radius: 3px;
+    }}
+
+    h3 {{
+        margin-top: 0.4rem;
+    }}
+
+    /* ---- Botones ---- */
     .stButton > button {{
         background-color: {CARMESI};
         color: white;
         border: none;
         font-family: 'Montserrat', sans-serif;
         font-weight: 600;
-        border-radius: 4px;
-        padding: 0.5rem 1rem;
-        transition: background-color 0.2s;
+        border-radius: 6px;
+        padding: 0.5rem 1.1rem;
+        box-shadow: var(--sombra-sm);
+        transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.18s ease;
     }}
 
     .stButton > button:hover {{
-        background-color: #8a1c24;
+        background-color: {CARMESI_OSCURO};
         color: white;
+        transform: translateY(-1px);
+        box-shadow: var(--sombra-md);
+    }}
+
+    .stButton > button:active {{
+        transform: translateY(0);
+        box-shadow: var(--sombra-sm);
     }}
 
     .stButton > button:focus {{
         background-color: {CARMESI};
         color: white;
-        box-shadow: 0 0 0 2px rgba(166, 33, 43, 0.3);
+        box-shadow: 0 0 0 3px rgba(166, 33, 43, 0.25);
     }}
 
-    /* Secundario para botones tipo "Ver detalle" */
+    /* Botones secundarios (kind="secondary") con look de contorno */
+    .stButton > button[kind="secondary"] {{
+        background-color: white;
+        color: {CARMESI};
+        border: 1.5px solid {BORDE};
+        box-shadow: none;
+    }}
+    .stButton > button[kind="secondary"]:hover {{
+        background-color: {ESTUCO_CLARO};
+        border-color: {CARMESI};
+        color: {CARMESI};
+    }}
+
+    /* Clase manual de respaldo */
     .secundario .stButton > button {{
         background-color: white;
         color: {CARMESI};
         border: 1.5px solid {CARMESI};
     }}
 
+    /* ---- Sidebar ---- */
     section[data-testid="stSidebar"] {{
         background-color: {ESTUCO};
-        border-right: 1px solid #d4d0c8;
+        border-right: 1px solid {BORDE};
     }}
 
     section[data-testid="stSidebar"] .stMarkdown h1,
     section[data-testid="stSidebar"] .stMarkdown h2,
     section[data-testid="stSidebar"] .stMarkdown h3 {{
         color: {NEGRO_PATRIMONIAL};
+    }}
+
+    /* Navegación tipo "nav items" con el radio del sidebar */
+    section[data-testid="stSidebar"] div[role="radiogroup"] label {{
+        display: flex;
+        align-items: center;
+        padding: 0.5rem 0.7rem;
+        margin-bottom: 0.25rem;
+        border-radius: 8px;
+        font-family: 'Montserrat', sans-serif;
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: {PIZARRA};
+        cursor: pointer;
+        transition: background-color 0.15s ease, color 0.15s ease;
+    }}
+    section[data-testid="stSidebar"] div[role="radiogroup"] label:hover {{
+        background-color: rgba(166, 33, 43, 0.07);
+        color: {CARMESI};
+    }}
+    /* Oculta el círculo del radio para un look de menú */
+    section[data-testid="stSidebar"] div[role="radiogroup"] label > div:first-child {{
+        display: none;
+    }}
+    /* Estado seleccionado: la opción marcada */
+    section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) {{
+        background-color: {CARMESI};
+        color: white;
+        box-shadow: var(--sombra-sm);
+    }}
+
+    /* ---- Métricas como tarjetas ---- */
+    div[data-testid="stMetric"] {{
+        background-color: white;
+        border: 1px solid {BORDE};
+        border-radius: 10px;
+        padding: 0.9rem 1.1rem;
+        box-shadow: var(--sombra-sm);
+        transition: transform 0.12s ease, box-shadow 0.12s ease;
+    }}
+    div[data-testid="stMetric"]:hover {{
+        transform: translateY(-2px);
+        box-shadow: var(--sombra-md);
     }}
 
     div[data-testid="stMetricValue"] {{
@@ -123,17 +224,25 @@ CSS = f"""
         font-weight: 600;
     }}
 
+    /* ---- Tabs ---- */
     .stTabs [data-baseweb="tab-list"] {{
         gap: 8px;
+        border-bottom: 1px solid {BORDE};
     }}
 
     .stTabs [data-baseweb="tab"] {{
         background-color: white;
-        border: 1px solid {ESTUCO};
-        border-radius: 4px 4px 0 0;
+        border: 1px solid {BORDE};
+        border-bottom: none;
+        border-radius: 8px 8px 0 0;
         font-family: 'Montserrat', sans-serif;
         font-weight: 600;
         color: {PIZARRA};
+        transition: background-color 0.15s ease, color 0.15s ease;
+    }}
+    .stTabs [data-baseweb="tab"]:hover {{
+        background-color: {ESTUCO_CLARO};
+        color: {CARMESI};
     }}
 
     .stTabs [aria-selected="true"] {{
@@ -142,44 +251,102 @@ CSS = f"""
         border-color: {CARMESI};
     }}
 
-    /* Badges para el score y estado */
+    /* ---- Inputs / expanders ---- */
+    div[data-testid="stExpander"] {{
+        border: 1px solid {BORDE};
+        border-radius: 10px;
+        box-shadow: var(--sombra-sm);
+        overflow: hidden;
+        background-color: white;
+    }}
+
+    .stTextInput input:focus,
+    .stNumberInput input:focus,
+    .stTextArea textarea:focus {{
+        border-color: {CARMESI} !important;
+        box-shadow: 0 0 0 2px rgba(166, 33, 43, 0.15) !important;
+    }}
+
+    /* ---- Badges para el score y estado ---- */
     .badge {{
         display: inline-block;
-        padding: 0.2rem 0.6rem;
-        border-radius: 12px;
+        padding: 0.25rem 0.7rem;
+        border-radius: 999px;
         font-size: 0.85rem;
-        font-weight: 600;
+        font-weight: 700;
         font-family: 'Montserrat', sans-serif;
+        box-shadow: var(--sombra-sm);
     }}
     .badge-alto {{ background-color: {VERDE_RECUPERACION}; color: white; }}
     .badge-medio {{ background-color: {AMBAR_CAUTELA}; color: white; }}
     .badge-bajo {{ background-color: {CONCRETO}; color: white; }}
 
-    /* Tarjeta de licitación */
+    /* Score grande para la tarjeta */
+    .score-anillo {{
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 58px;
+        height: 58px;
+        border-radius: 50%;
+        font-family: 'Montserrat', sans-serif;
+        color: white;
+        line-height: 1;
+        box-shadow: var(--sombra-md);
+    }}
+    .score-anillo .num {{ font-size: 1.35rem; font-weight: 900; }}
+    .score-anillo .lbl {{ font-size: 0.55rem; font-weight: 600; opacity: 0.85; letter-spacing: 0.05em; }}
+    .score-alto {{ background: linear-gradient(135deg, {VERDE_RECUPERACION}, #246b4b); }}
+    .score-medio {{ background: linear-gradient(135deg, {AMBAR_CAUTELA}, #b8830f); }}
+    .score-bajo {{ background: linear-gradient(135deg, {CONCRETO}, #5f5f5f); }}
+
+    /* Chip de urgencia para días al cierre */
+    .chip {{
+        display: inline-block;
+        padding: 0.1rem 0.55rem;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        font-family: 'Montserrat', sans-serif;
+    }}
+    .chip-urgente {{ background: rgba(166,33,43,0.12); color: {CARMESI}; }}
+    .chip-pronto {{ background: rgba(216,154,31,0.16); color: #9a6c0c; }}
+    .chip-ok {{ background: rgba(46,125,91,0.14); color: {VERDE_RECUPERACION}; }}
+    .chip-neutro {{ background: {ESTUCO}; color: {CONCRETO}; }}
+
+    /* ---- Tarjeta de licitación ---- */
     .tarjeta-lic {{
         background-color: white;
+        border: 1px solid {BORDE};
         border-left: 4px solid {CARMESI};
-        padding: 1rem 1.2rem;
+        padding: 1.1rem 1.3rem;
         margin-bottom: 0.8rem;
-        border-radius: 4px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        border-radius: 10px;
+        box-shadow: var(--sombra-sm);
+        transition: transform 0.12s ease, box-shadow 0.12s ease, border-left-color 0.12s ease;
+    }}
+    .tarjeta-lic:hover {{
+        transform: translateY(-2px);
+        box-shadow: var(--sombra-lg);
+        border-left-color: {AMBAR_CAUTELA};
     }}
 
-    /* Logo header */
+    /* ---- Logo header ---- */
     .header-rch {{
         display: flex;
         align-items: center;
         gap: 0.8rem;
         padding-bottom: 1rem;
-        border-bottom: 1px solid {ESTUCO};
-        margin-bottom: 1rem;
+        border-bottom: 1px solid {BORDE};
+        margin-bottom: 1.2rem;
     }}
 
     .header-rch .isotipo {{
-        width: 42px;
-        height: 42px;
-        background-color: {CARMESI};
-        border-radius: 50%;
+        width: 44px;
+        height: 44px;
+        background: linear-gradient(135deg, {CARMESI}, {CARMESI_OSCURO});
+        border-radius: 12px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -187,12 +354,13 @@ CSS = f"""
         font-family: 'Montserrat', sans-serif;
         font-weight: 900;
         font-size: 1.2rem;
+        box-shadow: var(--sombra-md);
     }}
 
     .header-rch .titulo {{
         font-family: 'Montserrat', sans-serif;
         font-weight: 900;
-        font-size: 1.1rem;
+        font-size: 1.12rem;
         color: {NEGRO_PATRIMONIAL};
         line-height: 1.1;
     }}
@@ -205,12 +373,13 @@ CSS = f"""
     }}
 
     .stAlert {{
-        border-radius: 4px;
+        border-radius: 8px;
     }}
 
     /* Reducir padding superior */
     .block-container {{
         padding-top: 2rem;
+        max-width: 1200px;
     }}
 
     footer {{
@@ -219,7 +388,7 @@ CSS = f"""
         color: {CONCRETO};
         text-align: center;
         padding-top: 2rem;
-        border-top: 1px solid {ESTUCO};
+        border-top: 1px solid {BORDE};
         margin-top: 3rem;
         font-size: 0.85rem;
     }}
@@ -261,6 +430,38 @@ def badge_score(score: float) -> str:
     else:
         clase = "badge-bajo"
     return f'<span class="badge {clase}">{score}</span>'
+
+
+def score_anillo(score: float) -> str:
+    """Anillo circular con el score, coloreado según el nivel de pertinencia."""
+    if score >= 70:
+        clase = "score-alto"
+    elif score >= 45:
+        clase = "score-medio"
+    else:
+        clase = "score-bajo"
+    return (
+        f'<div class="score-anillo {clase}">'
+        f'<span class="num">{int(round(score))}</span>'
+        f'<span class="lbl">SCORE</span>'
+        f'</div>'
+    )
+
+
+def chip_cierre(dias: int | None) -> str:
+    """Chip con la urgencia del cierre según los días restantes."""
+    if dias is None:
+        return '<span class="chip chip-neutro">Sin fecha de cierre</span>'
+    if dias < 0:
+        return '<span class="chip chip-neutro">Cerrada</span>'
+    if dias <= 3:
+        clase = "chip-urgente"
+    elif dias <= 10:
+        clase = "chip-pronto"
+    else:
+        clase = "chip-ok"
+    etiqueta = "Cierra hoy" if dias == 0 else f"Cierra en {dias} día{'s' if dias != 1 else ''}"
+    return f'<span class="chip {clase}">{etiqueta}</span>'
 
 
 def dias_para_cierre(fecha_str: str) -> int | None:
@@ -531,18 +732,20 @@ def pagina_explorar() -> None:
                                     {nombre}
                                 </div>
                                 <div style="color:{PIZARRA}; font-size:0.9rem;
-                                            margin-top:0.3rem;">
+                                            margin-top:0.35rem;">
                                     <b>{organismo}</b> · {region}
                                 </div>
-                                <div style="color:{CONCRETO}; font-size:0.85rem;
-                                            margin-top:0.4rem;">
-                                    Código: <code>{codigo}</code> ·
-                                    Monto referencial: <b>{formato_clp(monto)}</b> ·
-                                    {f'Cierra en <b>{dias_cierre}</b> días' if dias_cierre is not None else 'Sin fecha de cierre'}
+                                <div style="display:flex; align-items:center; flex-wrap:wrap;
+                                            gap:0.5rem; margin-top:0.6rem;">
+                                    {chip_cierre(dias_cierre)}
+                                    <span style="color:{NEGRO_PATRIMONIAL}; font-size:0.9rem;
+                                                 font-weight:600;">{formato_clp(monto)}</span>
+                                    <span style="color:{CONCRETO}; font-size:0.8rem;">
+                                        Código <code>{codigo}</code></span>
                                 </div>
                             </div>
                             <div style="text-align:right;">
-                                {badge_score(score['total'])}
+                                {score_anillo(score['total'])}
                             </div>
                         </div>
                     </div>
