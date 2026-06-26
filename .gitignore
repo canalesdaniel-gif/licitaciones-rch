@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+.venv/
+env/
+*.egg-info/
+
+# Datos generados en tiempo de ejecución (pipeline y configuración del usuario)
+data/
+
+# Sistema
+.DS_Store
