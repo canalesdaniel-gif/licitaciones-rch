@@ -53,6 +53,10 @@ AMBAR_CAUTELA = "#D89A1F"
 LIENZO = "#FAF9F7"
 BORDE = "#E3DFD8"
 
+# Nombre de la propia empresa, para distinguir en qué adjudicaciones participó
+# o ganó RCH frente a la competencia.
+RCH_EMPRESA = "RCH Construcción & Restauración"
+
 
 CSS = f"""
 <style>
@@ -372,6 +376,103 @@ CSS = f"""
         color: {PIZARRA};
     }}
 
+    /* ---- Adjudicadas ---- */
+    /* Tarjeta cuando gana RCH: acento verde y fondo sutil */
+    .tarjeta-lic.gano-rch {{
+        border-left-color: {VERDE_RECUPERACION};
+        background: linear-gradient(90deg, rgba(46,125,91,0.05), white 40%);
+    }}
+    .tarjeta-lic.gano-rch:hover {{
+        border-left-color: {VERDE_RECUPERACION};
+    }}
+
+    .empresa-pill {{
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.15rem 0.6rem;
+        border-radius: 999px;
+        font-family: 'Montserrat', sans-serif;
+        font-weight: 700;
+        font-size: 0.82rem;
+        background: {ESTUCO};
+        color: {PIZARRA};
+    }}
+    .empresa-pill.es-rch {{
+        background: rgba(46,125,91,0.15);
+        color: {VERDE_RECUPERACION};
+    }}
+
+    /* Ranking de competencia */
+    .rank-row {{
+        display: flex;
+        align-items: center;
+        gap: 0.7rem;
+        margin-bottom: 0.55rem;
+    }}
+    .rank-pos {{
+        flex: 0 0 22px;
+        font-family: 'Montserrat', sans-serif;
+        font-weight: 900;
+        font-size: 0.95rem;
+        color: {CONCRETO};
+        text-align: center;
+    }}
+    .rank-body {{ flex: 1; min-width: 0; }}
+    .rank-head {{
+        display: flex;
+        justify-content: space-between;
+        gap: 0.5rem;
+        font-size: 0.88rem;
+        margin-bottom: 0.2rem;
+    }}
+    .rank-name {{
+        font-weight: 600;
+        color: {NEGRO_PATRIMONIAL};
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }}
+    .rank-name.es-rch {{ color: {VERDE_RECUPERACION}; font-weight: 700; }}
+    .rank-val {{ color: {PIZARRA}; font-weight: 700; font-family: 'Montserrat', sans-serif; }}
+    .rank-track {{
+        height: 8px;
+        background: {ESTUCO};
+        border-radius: 999px;
+        overflow: hidden;
+    }}
+    .rank-fill {{
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, {CARMESI}, {AMBAR_CAUTELA});
+    }}
+    .rank-fill.es-rch {{
+        background: linear-gradient(90deg, {VERDE_RECUPERACION}, #4fb083);
+    }}
+
+    /* Tabla de oferentes en la ficha */
+    .oferente-row {{
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.8rem;
+        padding: 0.5rem 0.8rem;
+        border: 1px solid {BORDE};
+        border-radius: 8px;
+        margin-bottom: 0.4rem;
+        background: white;
+        font-size: 0.9rem;
+    }}
+    .oferente-row.ganador {{
+        border-color: {VERDE_RECUPERACION};
+        background: rgba(46,125,91,0.06);
+        font-weight: 600;
+    }}
+    .oferente-row.es-rch:not(.ganador) {{
+        border-color: {AMBAR_CAUTELA};
+        background: rgba(216,154,31,0.06);
+    }}
+
     .stAlert {{
         border-radius: 8px;
     }}
@@ -420,6 +521,19 @@ def formato_clp(monto: float | int | None) -> str:
     if not monto:
         return "—"
     return f"${monto:,.0f}".replace(",", ".")
+
+
+def formato_clp_compacto(monto: float | int | None) -> str:
+    """Monto abreviado para KPIs, en notación chilena de millones (MM$).
+
+    Ej.: 6_913_200_000 -> "MM$ 6.913". Evita que las métricas se trunquen.
+    """
+    if not monto:
+        return "—"
+    if monto >= 1_000_000:
+        millones = monto / 1_000_000
+        return f"MM$ {millones:,.0f}".replace(",", ".")
+    return formato_clp(monto)
 
 
 def badge_score(score: float) -> str:
@@ -517,6 +631,7 @@ def render_sidebar() -> str:
             "Navegación",
             [
                 "🔍 Explorar Licitaciones",
+                "🏆 Adjudicadas",
                 "📋 Pipeline",
                 "🤖 Análisis con IA",
                 "📊 Dashboard",
@@ -1191,7 +1306,7 @@ def pagina_dashboard() -> None:
 
     cols = st.columns(4)
     cols[0].metric("Licitaciones en pipeline", total)
-    cols[1].metric("Monto total agregado", formato_clp(monto_total))
+    cols[1].metric("Monto total agregado", formato_clp_compacto(monto_total))
     cols[2].metric("Presentadas", presentadas)
     cols[3].metric("Tasa adjudicación", f"{tasa_adjudicacion:.1f}%")
 
@@ -1344,6 +1459,308 @@ def pagina_configuracion() -> None:
 
 
 # ============================================================================
+# Página 6: Licitaciones adjudicadas (inteligencia competitiva)
+# ============================================================================
+
+def _es_rch(nombre: str) -> bool:
+    return (nombre or "").strip().lower() == RCH_EMPRESA.lower()
+
+
+def _ahorro_pct(referencial: float | int | None, adjudicado: float | int | None) -> float | None:
+    """% de diferencia del monto adjudicado respecto al referencial.
+
+    Positivo = se adjudicó por debajo del referencial (ahorro para el mandante).
+    """
+    if not referencial or not adjudicado:
+        return None
+    return (referencial - adjudicado) / referencial * 100
+
+
+def chip_ahorro(pct: float | None) -> str:
+    if pct is None:
+        return '<span class="chip chip-neutro">Sin referencia</span>'
+    if pct >= 0:
+        return f'<span class="chip chip-ok">−{pct:.1f}% vs. referencial</span>'
+    return f'<span class="chip chip-urgente">+{abs(pct):.1f}% sobre referencial</span>'
+
+
+def ranking_competencia(adjudicadas: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Agrega adjudicaciones por empresa ganadora: nº de adjudicaciones y monto."""
+    agg: dict[str, dict[str, Any]] = {}
+    for lic in adjudicadas:
+        adj = lic.get("Adjudicacion") or {}
+        empresa = adj.get("EmpresaGanadora")
+        if not empresa:
+            continue
+        registro = agg.setdefault(empresa, {"empresa": empresa, "ganadas": 0, "monto": 0})
+        registro["ganadas"] += 1
+        registro["monto"] += adj.get("MontoAdjudicado") or 0
+    ranking = list(agg.values())
+    ranking.sort(key=lambda r: (r["ganadas"], r["monto"]), reverse=True)
+    return ranking
+
+
+def pagina_adjudicadas() -> None:
+    header_rch()
+    st.markdown("# Licitaciones adjudicadas")
+    st.markdown(
+        f"<p style='color:{PIZARRA};'>Inteligencia competitiva: qué licitaciones "
+        "cerraron, quién las ganó, a qué monto respecto al referencial y contra "
+        "quiénes compitió RCH.</p>",
+        unsafe_allow_html=True,
+    )
+
+    # Cargar adjudicadas (demo o API real)
+    if st.session_state.modo_demo:
+        adjudicadas = demo_data.adjudicadas_demo()
+    else:
+        if not st.session_state.ticket:
+            st.error(
+                "Falta el ticket de Mercado Público. Actívalo en la barra "
+                "lateral o vuelve al modo demostración."
+            )
+            return
+        try:
+            adjudicadas = mp.listar_licitaciones_por_fecha(
+                st.session_state.get("fecha_adj", date.today()),
+                st.session_state.ticket,
+                estado="adjudicadas",
+            )
+        except mp.MercadoPublicoError as exc:
+            st.error(f"Error al consultar adjudicadas: {exc}")
+            return
+        if not adjudicadas:
+            st.info("No se encontraron licitaciones adjudicadas para esa fecha.")
+            return
+
+    # ---- Franja de KPIs ----
+    total = len(adjudicadas)
+    monto_total = sum((lic.get("Adjudicacion") or {}).get("MontoAdjudicado", 0) or 0 for lic in adjudicadas)
+    ganadas_rch = sum(
+        1 for lic in adjudicadas if _es_rch((lic.get("Adjudicacion") or {}).get("EmpresaGanadora", ""))
+    )
+    ahorros = [
+        p for lic in adjudicadas
+        if (p := _ahorro_pct(lic.get("MontoEstimado"), (lic.get("Adjudicacion") or {}).get("MontoAdjudicado"))) is not None
+    ]
+    ahorro_prom = sum(ahorros) / len(ahorros) if ahorros else 0
+    tasa_rch = (ganadas_rch / total * 100) if total else 0
+
+    cols = st.columns(4)
+    cols[0].metric("Adjudicadas", total)
+    cols[1].metric("Monto adjudicado", formato_clp_compacto(monto_total))
+    cols[2].metric("Ganadas por RCH", f"{ganadas_rch}", f"{tasa_rch:.0f}% del total")
+    cols[3].metric("Baja promedio", f"{ahorro_prom:.1f}%", help="Monto adjudicado bajo el referencial, en promedio.")
+
+    st.markdown("---")
+
+    # ---- Ranking de competencia + participación de RCH ----
+    col_rank, col_part = st.columns([3, 2])
+
+    with col_rank:
+        st.markdown("### Ranking de competencia")
+        ranking = ranking_competencia(adjudicadas)
+        max_monto = max((r["monto"] for r in ranking), default=1) or 1
+        for i, r in enumerate(ranking, start=1):
+            es_rch = _es_rch(r["empresa"])
+            cls = "es-rch" if es_rch else ""
+            pct_barra = r["monto"] / max_monto * 100
+            st.markdown(
+                f"""
+                <div class="rank-row">
+                    <div class="rank-pos">{i}</div>
+                    <div class="rank-body">
+                        <div class="rank-head">
+                            <span class="rank-name {cls}">
+                                {'★ ' if es_rch else ''}{r['empresa']}
+                            </span>
+                            <span class="rank-val">{r['ganadas']} · {formato_clp(r['monto'])}</span>
+                        </div>
+                        <div class="rank-track">
+                            <div class="rank-fill {cls}" style="width:{pct_barra:.0f}%;"></div>
+                        </div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    with col_part:
+        st.markdown("### Participación de RCH")
+        participo = sum(
+            1 for lic in adjudicadas
+            if any(_es_rch(o.get("Empresa", "")) for o in (lic.get("Adjudicacion") or {}).get("Oferentes", []))
+        )
+        perdidas = participo - ganadas_rch
+        st.markdown(
+            f"<div style='color:{PIZARRA}; line-height:1.9;'>"
+            f"Participó en <b>{participo}</b> de {total} adjudicadas<br>"
+            f"<span style='color:{VERDE_RECUPERACION}; font-weight:700;'>● Ganadas: {ganadas_rch}</span><br>"
+            f"<span style='color:{AMBAR_CAUTELA}; font-weight:700;'>● Segundo/otros: {perdidas}</span>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+        if participo:
+            tasa_exito = ganadas_rch / participo * 100
+            st.progress(min(int(tasa_exito), 100), text=f"Tasa de éxito: {tasa_exito:.0f}%")
+
+    st.markdown("---")
+
+    # ---- Filtros ----
+    with st.expander("🎛️ Filtros", expanded=False):
+        c1, c2, c3 = st.columns([2, 2, 1])
+        with c1:
+            palabras_adj = st.text_input("Buscar (nombre, organismo o empresa)", key="q_adj")
+        with c2:
+            empresas = sorted({(lic.get("Adjudicacion") or {}).get("EmpresaGanadora", "") for lic in adjudicadas} - {""})
+            empresa_sel = st.selectbox("Empresa ganadora", ["Todas"] + empresas, key="emp_adj")
+        with c3:
+            solo_rch = st.toggle("Solo con RCH", key="solo_rch", help="Adjudicaciones donde RCH participó.")
+
+    def _coincide(lic: dict[str, Any]) -> bool:
+        adj = lic.get("Adjudicacion") or {}
+        if empresa_sel != "Todas" and adj.get("EmpresaGanadora") != empresa_sel:
+            return False
+        if solo_rch and not any(_es_rch(o.get("Empresa", "")) for o in adj.get("Oferentes", [])):
+            return False
+        if palabras_adj:
+            blob = " ".join([
+                lic.get("Nombre", ""), lic.get("NombreOrganismo", ""),
+                adj.get("EmpresaGanadora", ""),
+            ]).lower()
+            if palabras_adj.lower() not in blob:
+                return False
+        return True
+
+    filtradas = [lic for lic in adjudicadas if _coincide(lic)]
+    # Más recientes primero
+    filtradas.sort(key=lambda l: l.get("FechaAdjudicacion", ""), reverse=True)
+
+    st.markdown(f"### {len(filtradas)} adjudicaciones")
+
+    for idx, lic in enumerate(filtradas):
+        adj = lic.get("Adjudicacion") or {}
+        codigo = lic.get("CodigoExterno", "")
+        empresa = adj.get("EmpresaGanadora", "—")
+        gano_rch = _es_rch(empresa)
+        monto_adj = adj.get("MontoAdjudicado")
+        pct = _ahorro_pct(lic.get("MontoEstimado"), monto_adj)
+        n_oferentes = adj.get("NumeroOferentes", len(adj.get("Oferentes", [])))
+        fecha_adj = (lic.get("FechaAdjudicacion", "") or "")[:10]
+
+        col1, col2 = st.columns([5, 1])
+        with col1:
+            st.markdown(
+                f"""
+                <div class="tarjeta-lic {'gano-rch' if gano_rch else ''}">
+                    <div style="display:flex; justify-content:space-between;
+                                align-items:flex-start; gap:1rem;">
+                        <div style="flex:1;">
+                            <div style="font-family:Montserrat; font-weight:700;
+                                        font-size:1.05rem; color:{NEGRO_PATRIMONIAL};">
+                                {lic.get('Nombre', 'Sin nombre')}
+                            </div>
+                            <div style="color:{PIZARRA}; font-size:0.9rem; margin-top:0.35rem;">
+                                <b>{lic.get('NombreOrganismo', '—')}</b> · {lic.get('Region', '—')}
+                            </div>
+                            <div style="display:flex; align-items:center; flex-wrap:wrap;
+                                        gap:0.5rem; margin-top:0.6rem;">
+                                <span class="empresa-pill {'es-rch' if gano_rch else ''}">
+                                    {'★' if gano_rch else '🏆'} {empresa}
+                                </span>
+                                {chip_ahorro(pct)}
+                            </div>
+                            <div style="color:{CONCRETO}; font-size:0.82rem; margin-top:0.5rem;">
+                                Adjudicado <b style="color:{NEGRO_PATRIMONIAL};">{formato_clp(monto_adj)}</b>
+                                · referencial {formato_clp(lic.get('MontoEstimado'))}
+                                · {n_oferentes} oferentes
+                                · {('adjudicada el ' + fecha_adj) if fecha_adj else 'fecha s/i'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with col2:
+            if st.button("Ver oferentes", key=f"adj_det_{codigo}_{idx}", use_container_width=True):
+                st.session_state["adjudicada_detalle"] = lic
+
+    if "adjudicada_detalle" in st.session_state:
+        st.markdown("---")
+        mostrar_detalle_adjudicada(st.session_state["adjudicada_detalle"])
+
+
+def mostrar_detalle_adjudicada(lic: dict[str, Any]) -> None:
+    adj = lic.get("Adjudicacion") or {}
+    codigo = lic.get("CodigoExterno", "")
+    st.markdown(f"## Comparativa de oferentes · {codigo}")
+    st.markdown(f"**{lic.get('Nombre', '')}**")
+    st.markdown(
+        f"<div style='color:{PIZARRA};'>{lic.get('NombreOrganismo', '—')} · "
+        f"{lic.get('Region', '—')} · Referencial {formato_clp(lic.get('MontoEstimado'))}</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown("")
+
+    oferentes = sorted(
+        adj.get("Oferentes", []),
+        key=lambda o: o.get("Monto", 0) or 0,
+    )
+    referencial = lic.get("MontoEstimado") or 0
+    for pos, of in enumerate(oferentes, start=1):
+        es_rch = _es_rch(of.get("Empresa", ""))
+        es_ganador = of.get("Ganador", False)
+        clases = "oferente-row"
+        if es_ganador:
+            clases += " ganador"
+        if es_rch:
+            clases += " es-rch"
+        etiqueta = []
+        if es_ganador:
+            etiqueta.append(f"<span style='color:{VERDE_RECUPERACION}; font-weight:700;'>ADJUDICADO</span>")
+        if es_rch and not es_ganador:
+            etiqueta.append(f"<span style='color:{AMBAR_CAUTELA}; font-weight:700;'>RCH</span>")
+        pct_ref = _ahorro_pct(referencial, of.get("Monto"))
+        ref_txt = f"−{pct_ref:.1f}%" if pct_ref is not None and pct_ref >= 0 else (f"+{abs(pct_ref):.1f}%" if pct_ref is not None else "")
+        st.markdown(
+            f"""
+            <div class="{clases}">
+                <div><span style="color:{CONCRETO}; font-weight:700;">#{pos}</span>
+                     &nbsp;{'★ ' if es_rch else ''}{of.get('Empresa', '—')}
+                     &nbsp;{' · '.join(etiqueta)}</div>
+                <div style="font-family:Montserrat; font-weight:700; color:{NEGRO_PATRIMONIAL};">
+                    {formato_clp(of.get('Monto'))}
+                    <span style="color:{CONCRETO}; font-weight:400; font-size:0.8rem;">{ref_txt}</span>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # Posición de RCH
+    rch_of = next((o for o in oferentes if _es_rch(o.get("Empresa", ""))), None)
+    if rch_of:
+        pos_rch = oferentes.index(rch_of) + 1
+        ganador_monto = next((o.get("Monto") for o in oferentes if o.get("Ganador")), None)
+        if rch_of.get("Ganador"):
+            st.success(f"RCH ganó esta licitación (posición 1 de {len(oferentes)}).")
+        elif ganador_monto:
+            brecha = (rch_of.get("Monto", 0) - ganador_monto) / ganador_monto * 100
+            st.warning(
+                f"RCH quedó en posición {pos_rch} de {len(oferentes)}. "
+                f"Su oferta estuvo {brecha:.1f}% por sobre la ganadora "
+                f"({formato_clp(rch_of.get('Monto', 0) - ganador_monto)} de diferencia)."
+            )
+    else:
+        st.info("RCH no participó en esta licitación.")
+
+    if st.button("✕ Cerrar comparativa", use_container_width=True):
+        st.session_state.pop("adjudicada_detalle", None)
+        st.rerun()
+
+
+# ============================================================================
 # Routing
 # ============================================================================
 
@@ -1352,6 +1769,8 @@ def main() -> None:
 
     if pagina.startswith("🔍"):
         pagina_explorar()
+    elif pagina.startswith("🏆"):
+        pagina_adjudicadas()
     elif pagina.startswith("📋"):
         pagina_pipeline()
     elif pagina.startswith("🤖"):
