@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Secretos locales (NUNCA versionar tickets ni contraseñas)
+.env
+.streamlit/secrets.toml
+
+# Nota: data/ SÍ se versiona.
+#   - data/adjudicadas.json lo actualiza el barrido diario (GitHub Actions).
+#   - data/configuracion.json puedes commitearlo para que la automatización
+#     use tus mismas palabras clave y rubros.

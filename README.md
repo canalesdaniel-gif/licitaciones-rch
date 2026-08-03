@@ -18,14 +18,19 @@ licitaciones_mvp/
 ├── app.py                      Aplicación Streamlit (navegación + páginas)
 ├── api_mercado_publico.py      Cliente de la API de Chilecompra
 ├── analisis_ia.py              Integración con Claude API
-├── data_store.py               Persistencia en JSON (pipeline y configuración)
-├── demo_data.py                Datos de demostración (licitaciones ficticias)
+├── monitoreo.py                Núcleo del monitoreo de adjudicadas
+├── notificaciones.py           Correo (SMTP) y exportación a Excel
+├── monitor_diario.py           Barrido diario (entry point de la automatización)
+├── data_store.py               Persistencia en JSON (pipeline, config, adjudicadas)
+├── demo_data.py                Datos de demostración (ficticios)
 ├── scoring.py                  Cálculo del score de pertinencia
 ├── requirements.txt            Dependencias Python
 ├── .streamlit/config.toml      Tema visual RCH
-└── data/                       Datos del usuario (generado en tiempo de ejecución)
+├── .github/workflows/          Automatización (barrido diario de adjudicadas)
+└── data/                       Datos persistidos
     ├── pipeline.json
-    └── configuracion.json
+    ├── configuracion.json
+    └── adjudicadas.json        Histórico de adjudicaciones monitoreadas
 ```
 
 ## Instalación local
@@ -84,6 +89,44 @@ Ambas credenciales se ingresan en la barra lateral de la app. **No se guardan en
 2. Build command: `pip install -r requirements.txt`
 3. Start command: `streamlit run app.py --server.port $PORT --server.address 0.0.0.0`
 
+## Monitoreo de obras adjudicadas
+
+Además de explorar licitaciones abiertas, el sistema monitorea **qué obras se
+adjudican en tu rubro y a qué proveedor**, como inteligencia competitiva.
+
+### En la app (página *📣 Adjudicadas*)
+
+- Botón **Buscar adjudicadas ahora**: barre las adjudicaciones de los últimos N
+  días, las filtra por rubro (códigos UNSPSC) y palabras clave, y registra solo
+  las **nuevas** en `data/adjudicadas.json`.
+- Cada tarjeta muestra la obra, el organismo, el/los **adjudicatario(s)** y el
+  **monto adjudicado**, con enlace directo a Mercado Público.
+- Filtros por texto y región, KPIs y botón **Exportar a Excel** (formato RCH).
+
+### Barrido diario automático (GitHub Actions)
+
+El workflow `.github/workflows/monitoreo-adjudicadas.yml` corre todos los días,
+detecta las adjudicaciones nuevas, actualiza el histórico (lo commitea de vuelta
+al repo) y, si hay novedades, **envía un correo resumen**.
+
+Configura estos *secrets* en el repositorio (**Settings → Secrets and variables
+→ Actions**):
+
+| Secret | Descripción |
+|---|---|
+| `MP_TICKET` | Ticket de Mercado Público (obligatorio). |
+| `SMTP_USER` | Casilla remitente (ej. tu Gmail). |
+| `SMTP_PASSWORD` | **Contraseña de aplicación** de Gmail (no la normal). |
+| `EMAIL_TO` | Destinatario(s) del aviso, separados por coma. |
+| `SMTP_HOST` / `SMTP_PORT` / `EMAIL_FROM` | Opcionales (por defecto Gmail: `smtp.gmail.com` / `587`). |
+
+> **Contraseña de aplicación de Gmail:** activa la verificación en dos pasos y
+> créala en <https://myaccount.google.com/apppasswords>. Es la forma segura de
+> enviar correo desde la automatización sin exponer tu contraseña real.
+
+También puedes ejecutarlo a mano con `python monitor_diario.py` (usa las mismas
+variables de entorno) o desde la pestaña **Actions → Run workflow**.
+
 ## Flujo de uso recomendado
 
 1. **Primera vez:** ir a *Configuración* y definir palabras clave, rangos de monto y regiones de interés.
@@ -95,10 +138,10 @@ Ambas credenciales se ingresan en la barra lateral de la app. **No se guardan en
 ## Roadmap sugerido
 
 - Migrar persistencia a SQLite o PostgreSQL para multiusuario.
-- Notificaciones automáticas (email o WhatsApp) cuando se publican licitaciones con score alto.
-- Crawler programado diario (Celery + Redis) para precargar licitaciones del día.
+- Notificaciones por WhatsApp además del correo.
+- Aviso automático también para licitaciones **abiertas** con score alto (hoy el barrido diario es de adjudicadas).
+- Panel de competencia: ranking de proveedores que más se adjudican en el rubro (a partir de `data/adjudicadas.json`).
 - Integración con módulos internos RCH (planilla de itemizado, APU, propuestas).
-- Comparador de competencia (qué empresas ganan licitaciones similares).
 - Exportación a Word/PDF de informes de pertinencia (con formato RCH).
 
 ## Notas técnicas

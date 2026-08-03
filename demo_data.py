@@ -192,6 +192,78 @@ def licitaciones_demo() -> list[dict]:
     ]
 
 
+def adjudicadas_demo() -> list[dict]:
+    """Adjudicaciones ficticias para probar el monitoreo sin ticket real.
+
+    Reproduce la estructura enriquecida que produce `monitoreo.py`:
+    licitación adjudicada + proveedor(es) ganador(es) y monto adjudicado.
+    """
+    hoy = datetime.now()
+
+    return [
+        {
+            "CodigoExterno": "1509-33-LP26",
+            "Nombre": "Construcción Cesfam Padre Las Casas",
+            "NombreOrganismo": "Servicio de Salud Araucanía Sur",
+            "Region": "IX Región de La Araucanía",
+            "CodigoProductoONU": "72101502",
+            "RubroPrincipal": "Construcción hospitalaria",
+            "FechaAdjudicacion": (hoy - timedelta(days=1)).isoformat(),
+            "MontoAdjudicado": 3_180_000_000,
+            "Adjudicatarios": [
+                {"proveedor": "Constructora Brotec S.A.", "rut": "96.example-1", "monto": 3_180_000_000},
+            ],
+            "UrlMercadoPublico": "https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idlicitacion=1509-33-LP26",
+            "fecha_detectada": hoy.isoformat(),
+        },
+        {
+            "CodigoExterno": "2711-08-LP26",
+            "Nombre": "Restauración Teatro Municipal de Iquique - Etapa 2",
+            "NombreOrganismo": "Ilustre Municipalidad de Iquique",
+            "Region": "I Región de Tarapacá",
+            "CodigoProductoONU": "72101501",
+            "RubroPrincipal": "Restauración patrimonial",
+            "FechaAdjudicacion": (hoy - timedelta(days=2)).isoformat(),
+            "MontoAdjudicado": 1_940_000_000,
+            "Adjudicatarios": [
+                {"proveedor": "Constructora Santolaya S.A.", "rut": "77.example-2", "monto": 1_940_000_000},
+            ],
+            "UrlMercadoPublico": "https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idlicitacion=2711-08-LP26",
+            "fecha_detectada": hoy.isoformat(),
+        },
+        {
+            "CodigoExterno": "3902-51-LE26",
+            "Nombre": "Inspección Técnica de Obras Reposición Escuela G-45 Melipilla",
+            "NombreOrganismo": "Ilustre Municipalidad de Melipilla",
+            "Region": "Región Metropolitana",
+            "CodigoProductoONU": "81101500",
+            "RubroPrincipal": "Servicios de ingeniería",
+            "FechaAdjudicacion": (hoy - timedelta(days=1)).isoformat(),
+            "MontoAdjudicado": 410_000_000,
+            "Adjudicatarios": [
+                {"proveedor": "Ingeniería y Construcción XYZ Ltda.", "rut": "76.example-3", "monto": 410_000_000},
+            ],
+            "UrlMercadoPublico": "https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idlicitacion=3902-51-LE26",
+            "fecha_detectada": hoy.isoformat(),
+        },
+        {
+            "CodigoExterno": "4188-19-LP26",
+            "Nombre": "Reforzamiento estructural Edificio Consistorial Los Ángeles",
+            "NombreOrganismo": "Ilustre Municipalidad de Los Ángeles",
+            "Region": "VIII Región del Biobío",
+            "CodigoProductoONU": "72101500",
+            "RubroPrincipal": "Construcción y restauración",
+            "FechaAdjudicacion": (hoy - timedelta(days=3)).isoformat(),
+            "MontoAdjudicado": 890_000_000,
+            "Adjudicatarios": [
+                {"proveedor": "Constructora Desco S.A.", "rut": "96.example-4", "monto": 890_000_000},
+            ],
+            "UrlMercadoPublico": "https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idlicitacion=4188-19-LP26",
+            "fecha_detectada": hoy.isoformat(),
+        },
+    ]
+
+
 def detalle_demo(codigo: str) -> dict:
     """Devuelve un detalle ampliado para una licitación demo."""
     base = next(

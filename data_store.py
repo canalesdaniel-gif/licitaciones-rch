@@ -14,6 +14,7 @@ from typing import Any
 
 ARCHIVO_PIPELINE = Path("data/pipeline.json")
 ARCHIVO_CONFIG = Path("data/configuracion.json")
+ARCHIVO_ADJUDICADAS = Path("data/adjudicadas.json")
 
 ESTADOS_PIPELINE = [
     "descubierta",
@@ -111,6 +112,53 @@ def eliminar_de_pipeline(codigo: str) -> bool:
     return True
 
 
+def cargar_adjudicadas() -> list[dict[str, Any]]:
+    """Carga el histórico de adjudicaciones monitoreadas."""
+    _asegurar_directorio()
+    if not ARCHIVO_ADJUDICADAS.exists():
+        return []
+    try:
+        with ARCHIVO_ADJUDICADAS.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def guardar_adjudicadas(registros: list[dict[str, Any]]) -> None:
+    """Reemplaza el histórico completo de adjudicaciones."""
+    _asegurar_directorio()
+    with ARCHIVO_ADJUDICADAS.open("w", encoding="utf-8") as f:
+        json.dump(registros, f, ensure_ascii=False, indent=2)
+
+
+def registrar_adjudicadas(nuevas: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Agrega adjudicaciones al histórico evitando duplicados por código.
+
+    Args:
+        nuevas: adjudicaciones enriquecidas detectadas en un barrido.
+
+    Returns:
+        La sublista de adjudicaciones que efectivamente eran nuevas
+        (no estaban ya en el histórico). Sirve para disparar avisos.
+    """
+    historico = cargar_adjudicadas()
+    codigos_existentes = {r.get("CodigoExterno") for r in historico}
+
+    realmente_nuevas: list[dict[str, Any]] = []
+    for registro in nuevas:
+        codigo = registro.get("CodigoExterno")
+        if not codigo or codigo in codigos_existentes:
+            continue
+        codigos_existentes.add(codigo)
+        realmente_nuevas.append(registro)
+
+    if realmente_nuevas:
+        historico.extend(realmente_nuevas)
+        guardar_adjudicadas(historico)
+
+    return realmente_nuevas
+
+
 def cargar_configuracion() -> dict[str, Any]:
     """Carga la configuración personalizada del usuario."""
     _asegurar_directorio()
@@ -150,4 +198,8 @@ def configuracion_por_defecto() -> dict[str, Any]:
         "monto_minimo_clp": 100_000_000,
         "monto_maximo_clp": 5_000_000_000,
         "umbral_score_recomendado": 70,
+        # Códigos de rubro UNSPSC (2 dígitos) usados para el monitoreo de
+        # adjudicadas. 72 = construcción, 81 = ingeniería/arquitectura,
+        # 95 = edificios y estructuras prefabricadas.
+        "rubros_codigo": [72, 81, 95],
     }

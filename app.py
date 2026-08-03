@@ -25,6 +25,8 @@ import analisis_ia
 import api_mercado_publico as mp
 import data_store as ds
 import demo_data
+import monitoreo
+import notificaciones
 import scoring
 
 
@@ -316,6 +318,7 @@ def render_sidebar() -> str:
             "Navegación",
             [
                 "🔍 Explorar Licitaciones",
+                "📣 Adjudicadas",
                 "📋 Pipeline",
                 "🤖 Análisis con IA",
                 "📊 Dashboard",
@@ -667,7 +670,177 @@ def mostrar_detalle_licitacion(lic: dict[str, Any], score: dict[str, Any] | None
 
 
 # ============================================================================
-# Página 2: Pipeline
+# Página 2: Monitoreo de adjudicadas
+# ============================================================================
+
+def pagina_adjudicadas() -> None:
+    header_rch()
+    st.markdown("# Monitoreo de adjudicadas")
+    st.markdown(
+        f"<p style='color:{PIZARRA};'>Obras adjudicadas en tu rubro: qué se "
+        "adjudicó, a qué proveedor y por cuánto. El barrido diario automático "
+        "detecta las nuevas y te avisa por correo; aquí las revisas, filtras "
+        "y exportas.</p>",
+        unsafe_allow_html=True,
+    )
+
+    config = ds.cargar_configuracion()
+
+    # --- Controles de barrido ---
+    with st.expander("🎛️ Buscar nuevas adjudicaciones", expanded=False):
+        col1, col2 = st.columns([1, 3])
+        with col1:
+            dias_atras = st.number_input(
+                "Días hacia atrás",
+                min_value=1,
+                max_value=30,
+                value=7,
+                help="Cuántos días de adjudicaciones barrer desde hoy.",
+            )
+        with col2:
+            st.markdown(
+                f"<div style='color:{CONCRETO}; font-size:0.85rem; padding-top:1.8rem;'>"
+                f"Rubros monitoreados (UNSPSC): "
+                f"<b>{', '.join(str(c) for c in config.get('rubros_codigo', [72, 81, 95]))}</b> · "
+                f"{len(config.get('palabras_clave', []))} palabras clave. "
+                "Ajústalos en Configuración.</div>",
+                unsafe_allow_html=True,
+            )
+
+        if st.button("🔎 Buscar adjudicadas ahora", type="primary"):
+            with st.spinner("Barriendo adjudicaciones de Mercado Público..."):
+                try:
+                    if st.session_state.modo_demo:
+                        encontradas = monitoreo.buscar_adjudicadas_demo(config)
+                    else:
+                        if not st.session_state.ticket:
+                            st.error(
+                                "Falta el ticket de Mercado Público. Actívalo en "
+                                "la barra lateral o usa el modo demostración."
+                            )
+                            return
+                        encontradas = monitoreo.buscar_adjudicadas(
+                            ticket=st.session_state.ticket,
+                            config=config,
+                            dias_atras=int(dias_atras),
+                        )
+                except mp.MercadoPublicoError as exc:
+                    st.error(f"Error al consultar Mercado Público: {exc}")
+                    return
+
+            nuevas = ds.registrar_adjudicadas(encontradas)
+            if nuevas:
+                st.success(
+                    f"{len(encontradas)} adjudicaciones del rubro · "
+                    f"{len(nuevas)} nuevas agregadas al histórico."
+                )
+            else:
+                st.info(
+                    f"{len(encontradas)} adjudicaciones del rubro. "
+                    "Ninguna nueva respecto de lo ya registrado."
+                )
+
+    # --- Histórico monitoreado ---
+    adjudicadas = ds.cargar_adjudicadas()
+
+    if not adjudicadas:
+        st.info(
+            "Aún no hay adjudicaciones registradas. Usa *Buscar adjudicadas ahora* "
+            "o deja que el barrido diario automático las vaya poblando."
+        )
+        return
+
+    # Filtros de visualización
+    regiones_disponibles = sorted(
+        {a.get("Region", "") for a in adjudicadas if a.get("Region")}
+    )
+    colf1, colf2 = st.columns([2, 2])
+    with colf1:
+        texto_filtro = st.text_input(
+            "Filtrar por texto (obra, organismo o proveedor)", value=""
+        )
+    with colf2:
+        region_filtro = st.multiselect(
+            "Región", options=regiones_disponibles, default=[]
+        )
+
+    def _coincide(a: dict[str, Any]) -> bool:
+        if region_filtro and a.get("Region") not in region_filtro:
+            return False
+        if texto_filtro.strip():
+            t = texto_filtro.strip().lower()
+            proveedores = " ".join(
+                p.get("proveedor", "") for p in (a.get("Adjudicatarios") or [])
+            )
+            campos = " ".join(
+                [a.get("Nombre", ""), a.get("NombreOrganismo", ""), proveedores]
+            ).lower()
+            if t not in campos:
+                return False
+        return True
+
+    filtradas = [a for a in adjudicadas if _coincide(a)]
+    filtradas.sort(key=lambda a: a.get("fecha_detectada", ""), reverse=True)
+
+    # KPIs
+    monto_total = sum(float(a.get("MontoAdjudicado") or 0) for a in filtradas)
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Adjudicaciones", len(filtradas))
+    col2.metric("Monto total", formato_clp(monto_total))
+    col3.metric("En histórico", len(adjudicadas))
+
+    # Exportar a Excel
+    if filtradas:
+        try:
+            xlsx_bytes = notificaciones.generar_excel_adjudicadas(filtradas)
+            st.download_button(
+                "⬇️ Exportar a Excel",
+                data=xlsx_bytes,
+                file_name="adjudicadas_rch.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        except Exception as exc:  # openpyxl u otro
+            st.caption(f"No se pudo generar el Excel: {exc}")
+
+    st.markdown("---")
+
+    for a in filtradas:
+        codigo = a.get("CodigoExterno", "")
+        proveedores = " · ".join(
+            p.get("proveedor", "") for p in (a.get("Adjudicatarios") or []) if p.get("proveedor")
+        ) or "Proveedor no informado"
+        fecha_adj = str(a.get("FechaAdjudicacion", ""))[:10]
+        url = a.get("UrlMercadoPublico", "#")
+
+        st.markdown(
+            f"""
+            <div class="tarjeta-lic">
+                <div style="font-family:Montserrat; font-weight:700;
+                            font-size:1.02rem; color:{NEGRO_PATRIMONIAL};">
+                    {a.get('Nombre', 'Sin nombre')}
+                </div>
+                <div style="color:{PIZARRA}; font-size:0.9rem; margin-top:0.3rem;">
+                    <b>{a.get('NombreOrganismo', '—')}</b> · {a.get('Region', '—')}
+                </div>
+                <div style="margin-top:0.5rem;">
+                    <span style="color:{VERDE_RECUPERACION}; font-weight:600;">
+                        Adjudicado a: {proveedores}
+                    </span>
+                </div>
+                <div style="color:{CONCRETO}; font-size:0.85rem; margin-top:0.4rem;">
+                    Código: <code>{codigo}</code> ·
+                    Monto adjudicado: <b>{formato_clp(a.get('MontoAdjudicado'))}</b> ·
+                    {f'Adjudicada el {fecha_adj}' if fecha_adj else 'Fecha no informada'} ·
+                    <a href="{url}" target="_blank" style="color:{CARMESI};">Ver en Mercado Público ↗</a>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+# ============================================================================
+# Página 3: Pipeline
 # ============================================================================
 
 def pagina_pipeline() -> None:
@@ -1149,6 +1322,8 @@ def main() -> None:
 
     if pagina.startswith("🔍"):
         pagina_explorar()
+    elif pagina.startswith("📣"):
+        pagina_adjudicadas()
     elif pagina.startswith("📋"):
         pagina_pipeline()
     elif pagina.startswith("🤖"):

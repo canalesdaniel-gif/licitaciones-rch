@@ -15,7 +15,7 @@ Para obtener un ticket: registrarse en mercadopublico.cl y solicitarlo en
 from __future__ import annotations
 
 import time
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import Any
 
 import requests
@@ -77,6 +77,119 @@ def detalle_licitacion(codigo: str, ticket: str) -> dict[str, Any]:
     if not listado:
         raise MercadoPublicoError(f"No se encontró la licitación {codigo}")
     return listado[0]
+
+
+def listar_adjudicadas_rango(
+    fecha_desde: date | datetime,
+    fecha_hasta: date | datetime,
+    ticket: str,
+    pausa_segundos: float = 0.4,
+) -> list[dict[str, Any]]:
+    """Lista las licitaciones adjudicadas en cada día del rango [desde, hasta].
+
+    La API de Mercado Público consulta un día a la vez, por lo que se itera
+    día por día. Se aplica una pausa entre llamadas para respetar el límite
+    de la API.
+
+    Returns:
+        Lista de licitaciones adjudicadas (resumen). Deduplicadas por código.
+    """
+    if isinstance(fecha_desde, datetime):
+        fecha_desde = fecha_desde.date()
+    if isinstance(fecha_hasta, datetime):
+        fecha_hasta = fecha_hasta.date()
+    if fecha_desde > fecha_hasta:
+        fecha_desde, fecha_hasta = fecha_hasta, fecha_desde
+
+    vistos: set[str] = set()
+    resultado: list[dict[str, Any]] = []
+    dia = fecha_desde
+    while dia <= fecha_hasta:
+        listado = listar_licitaciones_por_fecha(dia, ticket, estado="adjudicadas")
+        for lic in listado:
+            codigo = lic.get("CodigoExterno")
+            if codigo and codigo not in vistos:
+                vistos.add(codigo)
+                resultado.append(lic)
+        dia = dia + timedelta(days=1)
+        if pausa_segundos and dia <= fecha_hasta:
+            time.sleep(pausa_segundos)
+    return resultado
+
+
+def extraer_adjudicatarios(detalle: dict[str, Any]) -> dict[str, Any]:
+    """Extrae del detalle de una licitación adjudicada quién ganó y por cuánto.
+
+    La API expone la adjudicación de dos formas posibles (varía por versión):
+      - un objeto "Adjudicacion" a nivel de licitación, y/o
+      - un objeto "Adjudicacion" dentro de cada ítem de "Items".
+
+    Se recorre lo disponible de forma tolerante y se agrega por proveedor.
+
+    Returns:
+        Dict con:
+          - adjudicatarios: lista de {proveedor, rut, monto}
+          - monto_adjudicado: suma total adjudicada (o None si no hay dato)
+          - fecha_adjudicacion: fecha informada (o "")
+    """
+    por_proveedor: dict[str, dict[str, Any]] = {}
+
+    def _acumular(nombre: Any, rut: Any, monto: Any) -> None:
+        nombre = str(nombre).strip() if nombre else ""
+        if not nombre:
+            return
+        clave = str(rut).strip() or nombre
+        try:
+            monto_num = float(monto) if monto not in (None, "") else 0.0
+        except (ValueError, TypeError):
+            monto_num = 0.0
+        registro = por_proveedor.setdefault(
+            clave, {"proveedor": nombre, "rut": str(rut).strip() if rut else "", "monto": 0.0}
+        )
+        registro["monto"] += monto_num
+
+    # Ítems adjudicados
+    items = detalle.get("Items") or {}
+    lista_items = items.get("Listado") if isinstance(items, dict) else items
+    for item in lista_items or []:
+        adj = item.get("Adjudicacion") if isinstance(item, dict) else None
+        if not adj:
+            continue
+        cantidad = adj.get("Cantidad") or item.get("Cantidad") or 0
+        monto_unit = adj.get("MontoUnitario") or 0
+        try:
+            monto_item = float(monto_unit) * float(cantidad or 0)
+        except (ValueError, TypeError):
+            monto_item = adj.get("MontoUnitario") or 0
+        _acumular(
+            adj.get("NombreOferente") or adj.get("RazonSocial"),
+            adj.get("RutProveedor") or adj.get("RutOferente"),
+            monto_item,
+        )
+
+    # Adjudicación a nivel de licitación (respaldo)
+    adj_top = detalle.get("Adjudicacion")
+    fecha_adj = ""
+    if isinstance(adj_top, dict):
+        fecha_adj = adj_top.get("Fecha") or adj_top.get("FechaAdjudicacion") or ""
+        if not por_proveedor:
+            _acumular(
+                adj_top.get("NombreOferente") or adj_top.get("Proveedor"),
+                adj_top.get("RutProveedor"),
+                adj_top.get("MontoAdjudicado") or adj_top.get("Monto"),
+            )
+
+    adjudicatarios = [
+        {"proveedor": v["proveedor"], "rut": v["rut"], "monto": int(v["monto"]) if v["monto"] else None}
+        for v in por_proveedor.values()
+    ]
+    monto_total = sum(v["monto"] for v in por_proveedor.values())
+
+    return {
+        "adjudicatarios": adjudicatarios,
+        "monto_adjudicado": int(monto_total) if monto_total else None,
+        "fecha_adjudicacion": fecha_adj,
+    }
 
 
 def filtrar_por_rubro(
